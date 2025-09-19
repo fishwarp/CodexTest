@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar System Explorer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at top, #0f172a 0%, #020617 50%, #02040a 100%);
+      color: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem 3rem;
+    }
+
+    main.layout {
+      width: min(96vw, 1100px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      position: relative;
+    }
+
+    h1.title {
+      margin: 0;
+      font-size: clamp(1.75rem, 3vw, 2.6rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f8fafc;
+      text-align: center;
+      text-shadow: 0 6px 16px rgba(15, 23, 42, 0.55);
+    }
+
+    section.controls {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.85rem 1.2rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.45);
+    }
+
+    section.controls label {
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(248, 250, 252, 0.82);
+    }
+
+    section.controls output {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.95rem;
+      color: rgba(148, 163, 184, 0.95);
+      min-width: 8.5rem;
+      text-align: right;
+    }
+
+    input#zoomSlider {
+      --track-color: rgba(51, 65, 85, 0.85);
+      --fill-color: #38bdf8;
+      -webkit-appearance: none;
+      appearance: none;
+      width: min(45vw, 360px);
+      height: 0.35rem;
+      border-radius: 999px;
+      background: var(--track-color);
+      outline: none;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    input#zoomSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      background: var(--fill-color);
+      box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.25);
+      border: none;
+    }
+
+    input#zoomSlider::-moz-range-thumb {
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      background: var(--fill-color);
+      box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.25);
+      border: none;
+    }
+
+    input#zoomSlider::-webkit-slider-runnable-track {
+      height: 0.35rem;
+      background: linear-gradient(
+        to right,
+        var(--fill-color) calc(var(--value, 0%) * 1%),
+        var(--track-color) 0%
+      );
+    }
+
+    input#zoomSlider::-moz-range-track {
+      height: 0.35rem;
+      background: linear-gradient(
+        to right,
+        var(--fill-color) calc(var(--value, 0%) * 1%),
+        var(--track-color) 0%
+      );
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: min(96vw, 1040px);
+      display: flex;
+      justify-content: center;
+    }
+
+    canvas#solarCanvas {
+      width: min(96vw, 1040px);
+      height: min(96vw, 640px);
+      max-height: 700px;
+      background: rgba(2, 6, 23, 0.95);
+      border-radius: 18px;
+      box-shadow: 0 35px 80px rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(59, 130, 246, 0.08);
+      touch-action: none;
+      cursor: grab;
+    }
+
+    canvas#solarCanvas:active {
+      cursor: grabbing;
+    }
+
+    #tooltip {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      font-size: 0.85rem;
+      color: #f8fafc;
+    }
+
+    .tooltip-bubble {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      background: rgba(15, 23, 42, 0.92);
+      padding: 0.35rem 0.6rem;
+      border-radius: 0.6rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      box-shadow: 0 12px 28px rgba(2, 6, 23, 0.65);
+      white-space: nowrap;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .tooltip-bubble.visible {
+      opacity: 1;
+    }
+
+    .tooltip-bubble strong {
+      font-size: 0.9rem;
+      letter-spacing: 0.02em;
+      color: #bae6fd;
+    }
+
+    .tooltip-bubble span {
+      color: rgba(226, 232, 240, 0.72);
+      font-variant-numeric: tabular-nums;
+    }
+
+    section.info-panel {
+      width: min(96vw, 420px);
+      background: rgba(15, 23, 42, 0.78);
+      padding: 1.2rem 1.5rem;
+      border-radius: 1.1rem;
+      box-shadow: 0 18px 48px rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(51, 65, 85, 0.35);
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    section.info-panel h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #f1f5f9;
+    }
+
+    section.info-panel .stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      color: rgba(226, 232, 240, 0.78);
+      font-variant-numeric: tabular-nums;
+    }
+
+    section.info-panel .stat .label {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.74rem;
+      color: rgba(148, 163, 184, 0.78);
+    }
+
+    section.info-panel .stat .value {
+      color: rgba(226, 232, 240, 0.92);
+      font-weight: 500;
+    }
+
+    @media (max-width: 720px) {
+      section.controls {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      section.controls output {
+        text-align: center;
+        min-width: auto;
+      }
+
+      input#zoomSlider {
+        width: min(80vw, 320px);
+      }
+
+      section.info-panel {
+        width: min(96vw, 480px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <h1 class="title">Solar System Explorer</h1>
+    <section class="controls">
+      <label for="zoomSlider">Zoom</label>
+      <input id="zoomSlider" type="range" min="0" max="1000" step="1" value="500" aria-label="Zoom" />
+      <output id="zoomValue">1.00× (1 AU ≈ 100 px)</output>
+    </section>
+    <div class="canvas-wrapper">
+      <canvas id="solarCanvas" width="1024" height="640"></canvas>
+      <div id="tooltip"></div>
+    </div>
+    <section id="infoPanel" class="info-panel"></section>
+  </main>
+  <script>
+    (function () {
+      const TAU = Math.PI * 2;
+      const AU_IN_KM = 149_597_870.7;
+
+      const solarTree = {
+        id: "sun",
+        name: "Sun",
+        radiusKm: 696_340,
+        color: "#facc15",
+        orbitalPeriodDays: Infinity,
+        distanceFromParentAU: 0,
+        children: [
+          {
+            id: "mercury",
+            name: "Mercury",
+            radiusKm: 2_439.7,
+            color: "#9ca3af",
+            orbitalPeriodDays: 87.97,
+            distanceFromParentAU: 0.387,
+            children: [],
+          },
+          {
+            id: "venus",
+            name: "Venus",
+            radiusKm: 6_051.8,
+            color: "#f59e0b",
+            orbitalPeriodDays: 224.7,
+            distanceFromParentAU: 0.723,
+            children: [],
+          },
+          {
+            id: "earth",
+            name: "Earth",
+            radiusKm: 6_371,
+            color: "#38bdf8",
+            orbitalPeriodDays: 365.256,
+            distanceFromParentAU: 1,
+            children: [
+              {
+                id: "moon",
+                name: "Moon",
+                radiusKm: 1_737.4,
+                color: "#f8fafc",
+                orbitalPeriodDays: 27.321,
+                distanceFromParentAU: 0.00257,
+                children: [],
+              },
+              {
+                id: "iss",
+                name: "ISS",
+                radiusKm: 0.054,
+                color: "#ffffff",
+                orbitalPeriodDays: 0.0667,
+                distanceFromParentAU: 0.00000272,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "mars",
+            name: "Mars",
+            radiusKm: 3_389.5,
+            color: "#f97316",
+            orbitalPeriodDays: 686.98,
+            distanceFromParentAU: 1.524,
+            children: [
+              {
+                id: "phobos",
+                name: "Phobos",
+                radiusKm: 11.3,
+                color: "#d1d5db",
+                orbitalPeriodDays: 0.319,
+                distanceFromParentAU: 0.0000627,
+                children: [],
+              },
+              {
+                id: "deimos",
+                name: "Deimos",
+                radiusKm: 6.2,
+                color: "#e2e8f0",
+                orbitalPeriodDays: 1.263,
+                distanceFromParentAU: 0.000156,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "jupiter",
+            name: "Jupiter",
+            radiusKm: 69_911,
+            color: "#fbbf24",
+            orbitalPeriodDays: 4332.59,
+            distanceFromParentAU: 5.204,
+            children: [
+              {
+                id: "io",
+                name: "Io",
+                radiusKm: 1_821.6,
+                color: "#facc15",
+                orbitalPeriodDays: 1.769,
+                distanceFromParentAU: 0.00282,
+                children: [],
+              },
+              {
+                id: "europa",
+                name: "Europa",
+                radiusKm: 1_560.8,
+                color: "#bae6fd",
+                orbitalPeriodDays: 3.551,
+                distanceFromParentAU: 0.00449,
+                children: [],
+              },
+              {
+                id: "ganymede",
+                name: "Ganymede",
+                radiusKm: 2_634.1,
+                color: "#f3f4f6",
+                orbitalPeriodDays: 7.155,
+                distanceFromParentAU: 0.00716,
+                children: [],
+              },
+              {
+                id: "callisto",
+                name: "Callisto",
+                radiusKm: 2_410.3,
+                color: "#cbd5f5",
+                orbitalPeriodDays: 16.689,
+                distanceFromParentAU: 0.01259,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "saturn",
+            name: "Saturn",
+            radiusKm: 58_232,
+            color: "#fcd34d",
+            orbitalPeriodDays: 10_759,
+            distanceFromParentAU: 9.582,
+            children: [
+              {
+                id: "titan",
+                name: "Titan",
+                radiusKm: 2_574.7,
+                color: "#fde68a",
+                orbitalPeriodDays: 15.945,
+                distanceFromParentAU: 0.00817,
+                children: [],
+              },
+              {
+                id: "enceladus",
+                name: "Enceladus",
+                radiusKm: 252.1,
+                color: "#f8fafc",
+                orbitalPeriodDays: 1.37,
+                distanceFromParentAU: 0.00159,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "uranus",
+            name: "Uranus",
+            radiusKm: 25_362,
+            color: "#38d5f8",
+            orbitalPeriodDays: 30_687,
+            distanceFromParentAU: 19.201,
+            children: [
+              {
+                id: "titania",
+                name: "Titania",
+                radiusKm: 788.9,
+                color: "#dbeafe",
+                orbitalPeriodDays: 8.706,
+                distanceFromParentAU: 0.00291,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "neptune",
+            name: "Neptune",
+            radiusKm: 24_622,
+            color: "#60a5fa",
+            orbitalPeriodDays: 60_190,
+            distanceFromParentAU: 30.047,
+            children: [
+              {
+                id: "triton",
+                name: "Triton",
+                radiusKm: 1_353.4,
+                color: "#93c5fd",
+                orbitalPeriodDays: 5.877,
+                distanceFromParentAU: 0.00237,
+                children: [],
+              },
+            ],
+          },
+        ],
+      };
+
+      const canvas = document.getElementById("solarCanvas");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const zoomSlider = document.getElementById("zoomSlider");
+      const zoomValue = document.getElementById("zoomValue");
+      const tooltipHost = document.getElementById("tooltip");
+      const infoPanel = document.getElementById("infoPanel");
+
+      const state = {
+        dpr: window.devicePixelRatio || 1,
+        zoom: 0.18,
+        zoomMin: 0.05,
+        zoomMax: 3.5,
+        zoomSliderRange: 1000,
+        auToPx: 850,
+        maxHierarchicalFactor: 60000,
+        hierarchicalScaleLookup: [
+          { maxAU: 0.0000035, factor: 32000 },
+          { maxAU: 0.00001, factor: 16000 },
+          { maxAU: 0.00005, factor: 6000 },
+          { maxAU: 0.0002, factor: 1800 },
+          { maxAU: 0.001, factor: 400 },
+          { maxAU: 0.005, factor: 32 },
+          { maxAU: 0.02, factor: 10 },
+          { maxAU: 0.05, factor: 4 },
+          { maxAU: 0.2, factor: 2 },
+        ],
+        radiusExponent: 0.45,
+        radiusScale: 0.12,
+        minimumRadiusPx: 2.6,
+        timeScaleDaysPerSecond: 10,
+        rootBody: null,
+        bodyIndex: new Map(),
+        traversalOrder: [],
+        cameraOffset: { x: 0, y: 0 },
+        cameraInitialized: false,
+        focusId: "earth",
+        hoverId: null,
+        infoDirty: true,
+        pointerCache: new Map(),
+        pinchData: null,
+        pointerDown: null,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+      };
+
+      function createBody(node, parent) {
+        const body = {
+          id: node.id,
+          name: node.name,
+          radiusKm: node.radiusKm,
+          color: node.color,
+          distanceFromParentAU: node.distanceFromParentAU || 0,
+          orbitalPeriodDays: Number.isFinite(node.orbitalPeriodDays)
+            ? node.orbitalPeriodDays
+            : Infinity,
+          parent,
+          children: [],
+          angle: Math.random() * TAU,
+          position: { x: 0, y: 0 },
+          pixelScale: 1,
+          hierarchicalFactor: 1,
+          relativePixelScale: 1,
+          orbitRadiusPx: 0,
+          radiusPx: 1,
+          labelOffsetPx: 18,
+          hitRadius: 12,
+        };
+        if (Array.isArray(node.children)) {
+          body.children = node.children.map((child) => createBody(child, body));
+        }
+        return body;
+      }
+
+      state.rootBody = createBody(solarTree, null);
+
+      function registerTraversal(body) {
+        state.bodyIndex.set(body.id, body);
+        state.traversalOrder.push(body);
+        body.children.forEach(registerTraversal);
+      }
+
+      registerTraversal(state.rootBody);
+
+      function computeRelativeScale(distanceAU, parentFactor) {
+        if (!Number.isFinite(distanceAU) || distanceAU <= 0) {
+          return 1;
+        }
+        for (const entry of state.hierarchicalScaleLookup) {
+          if (distanceAU <= entry.maxAU) {
+            const limit = state.maxHierarchicalFactor / (parentFactor || 1);
+            return Math.max(1, Math.min(entry.factor, limit));
+          }
+        }
+        return 1;
+      }
+
+      function updateBodies() {
+        const baseScale = state.zoom * state.dpr;
+        for (const body of state.traversalOrder) {
+          if (!body.parent) {
+            body.hierarchicalFactor = 1;
+            body.pixelScale = baseScale;
+            body.relativePixelScale = 1;
+            body.orbitRadiusPx = 0;
+            body.position.x = 0;
+            body.position.y = 0;
+          } else {
+            const parent = body.parent;
+            const relativeTarget = computeRelativeScale(
+              body.distanceFromParentAU,
+              parent.hierarchicalFactor
+            );
+            body.relativePixelScale = relativeTarget;
+            body.hierarchicalFactor = parent.hierarchicalFactor * relativeTarget;
+            const parentPosition = parent.position;
+            body.pixelScale = baseScale * body.hierarchicalFactor;
+            body.orbitRadiusPx =
+              body.distanceFromParentAU * state.auToPx * body.pixelScale;
+            const angle = body.angle;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            body.position.x = parentPosition.x + cos * body.orbitRadiusPx;
+            body.position.y = parentPosition.y + sin * body.orbitRadiusPx;
+          }
+
+          body.radiusPx = computeBodyRadius(body);
+          body.hitRadius = computeHitRadius(body);
+          body.labelOffsetPx = computeLabelOffset(body);
+        }
+      }
+
+      function computeBodyRadius(body) {
+        const base =
+          Math.pow(body.radiusKm, state.radiusExponent) *
+          state.radiusScale *
+          state.dpr;
+        const hierarchyBoost = Math.pow(body.relativePixelScale || 1, 0.2);
+        const focusBoost = body.id === state.focusId ? 1.12 : 1;
+        return Math.max(
+          state.minimumRadiusPx * state.dpr,
+          base * hierarchyBoost * focusBoost
+        );
+      }
+
+      function computeHitRadius(body) {
+        const relative = Math.max(1, body.relativePixelScale || 1);
+        const scaled = 16 * state.dpr * Math.pow(relative, 0.18);
+        return Math.max(body.radiusPx + 8 * state.dpr, Math.min(scaled, 120 * state.dpr));
+      }
+
+      function computeLabelOffset(body) {
+        const relative = Math.max(1, body.relativePixelScale || 1);
+        const scaled = 18 * state.dpr * Math.pow(relative, 0.2);
+        return body.radiusPx + Math.min(160 * state.dpr, scaled + 14 * state.dpr);
+      }
+
+      function updatePhysics(deltaMs) {
+        const deltaDays = (deltaMs / 1000) * state.timeScaleDaysPerSecond;
+        for (const body of state.traversalOrder) {
+          if (!body.parent) continue;
+          if (!Number.isFinite(body.orbitalPeriodDays) || body.orbitalPeriodDays <= 0) {
+            continue;
+          }
+          const angularVelocity = TAU / body.orbitalPeriodDays;
+          body.angle = (body.angle + angularVelocity * deltaDays) % TAU;
+        }
+      }
+
+      function updateCamera(deltaMs) {
+        const focusBody = state.bodyIndex.get(state.focusId) || state.rootBody;
+        const targetX = state.canvasWidth / 2 - focusBody.position.x;
+        const targetY = state.canvasHeight / 2 - focusBody.position.y;
+        if (!state.cameraInitialized) {
+          state.cameraOffset.x = targetX;
+          state.cameraOffset.y = targetY;
+          state.cameraInitialized = true;
+        } else {
+          const smoothing = 1 - Math.exp(-deltaMs / 180);
+          state.cameraOffset.x += (targetX - state.cameraOffset.x) * smoothing;
+          state.cameraOffset.y += (targetY - state.cameraOffset.y) * smoothing;
+        }
+      }
+
+      function draw() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+
+        ctx.save();
+        ctx.translate(state.cameraOffset.x, state.cameraOffset.y);
+
+        ctx.lineWidth = 1.2 * state.dpr;
+        for (const body of state.traversalOrder) {
+          if (!body.parent) continue;
+          ctx.beginPath();
+          const orbitHighlight =
+            body.id === state.focusId || body.parent.id === state.focusId;
+          ctx.strokeStyle = orbitHighlight
+            ? "rgba(148, 197, 253, 0.55)"
+            : "rgba(148, 163, 184, 0.12)";
+          ctx.arc(
+            body.parent.position.x,
+            body.parent.position.y,
+            body.orbitRadiusPx,
+            0,
+            TAU
+          );
+          ctx.stroke();
+        }
+
+        ctx.font = `${Math.round(12 * state.dpr)}px 'Inter', 'Segoe UI', sans-serif`;
+        ctx.textBaseline = "middle";
+
+        for (const body of state.traversalOrder) {
+          ctx.beginPath();
+          ctx.fillStyle = body.color;
+          ctx.arc(body.position.x, body.position.y, body.radiusPx, 0, TAU);
+          ctx.fill();
+
+          if (state.focusId === body.id) {
+            ctx.lineWidth = 2.6 * state.dpr;
+            ctx.strokeStyle = "rgba(244, 244, 255, 0.95)";
+            ctx.stroke();
+          } else if (state.hoverId === body.id) {
+            ctx.lineWidth = 1.6 * state.dpr;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+            ctx.stroke();
+          }
+
+          drawLabel(body);
+        }
+
+        ctx.restore();
+      }
+
+      function drawLabel(body) {
+        const direction = body.parent
+          ? { x: Math.cos(body.angle), y: Math.sin(body.angle) }
+          : { x: 1, y: 0 };
+        const normalised = normalise(direction);
+        const labelDistance = body.labelOffsetPx + (body.id === state.focusId ? 10 * state.dpr : 0);
+        const labelX = body.position.x + normalised.x * labelDistance;
+        const labelY = body.position.y + normalised.y * labelDistance * 0.5;
+        const text = body.name;
+
+        ctx.save();
+        ctx.textBaseline = "middle";
+        ctx.textAlign = normalised.x >= 0 ? "left" : "right";
+        ctx.lineWidth = 3 * state.dpr;
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.75)";
+        ctx.strokeText(text, labelX, labelY);
+        ctx.fillStyle = "rgba(224, 242, 254, 0.95)";
+        ctx.fillText(text, labelX, labelY);
+        ctx.restore();
+      }
+
+      function normalise(vector) {
+        const mag = Math.hypot(vector.x, vector.y) || 1;
+        return { x: vector.x / mag, y: vector.y / mag };
+      }
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        state.canvasWidth = Math.max(1, Math.round(rect.width * state.dpr));
+        state.canvasHeight = Math.max(1, Math.round(rect.height * state.dpr));
+        if (canvas.width !== state.canvasWidth || canvas.height !== state.canvasHeight) {
+          canvas.width = state.canvasWidth;
+          canvas.height = state.canvasHeight;
+          state.cameraInitialized = false;
+        }
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      const minZoomLog = Math.log(state.zoomMin);
+      const maxZoomLog = Math.log(state.zoomMax);
+
+      function zoomToSliderValue(zoom) {
+        const ratio = (Math.log(zoom) - minZoomLog) / (maxZoomLog - minZoomLog);
+        return Math.round(clamp(ratio, 0, 1) * state.zoomSliderRange);
+      }
+
+      function sliderValueToZoom(value) {
+        const ratio = clamp(value / state.zoomSliderRange, 0, 1);
+        return Math.exp(minZoomLog + ratio * (maxZoomLog - minZoomLog));
+      }
+
+      let isSyncingSlider = false;
+
+      function updateZoomUI() {
+        isSyncingSlider = true;
+        const sliderValue = zoomToSliderValue(state.zoom);
+        zoomSlider.value = String(sliderValue);
+        zoomSlider.style.setProperty("--value", (sliderValue / state.zoomSliderRange) * 100);
+        const pixelsPerAU = state.zoom * state.auToPx;
+        zoomValue.textContent = `${state.zoom.toFixed(2)}× (1 AU ≈ ${pixelsPerAU.toFixed(0)} px)`;
+        isSyncingSlider = false;
+      }
+
+      function setZoom(newZoom, options = {}) {
+        const clamped = clamp(newZoom, state.zoomMin, state.zoomMax);
+        if (Math.abs(clamped - state.zoom) < 1e-4) {
+          if (!options.skipUi) {
+            updateZoomUI();
+          }
+          return;
+        }
+        state.zoom = clamped;
+        state.infoDirty = true;
+        if (!options.skipUi) {
+          updateZoomUI();
+        }
+      }
+
+      function adjustZoom(multiplier, anchorPoint) {
+        if (typeof multiplier !== "number" || Number.isNaN(multiplier) || multiplier <= 0) {
+          return;
+        }
+        const newZoom = state.zoom * multiplier;
+        setZoom(newZoom);
+      }
+
+      function getPointerDevicePoint(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (evt.clientX - rect.left) * state.dpr,
+          y: (evt.clientY - rect.top) * state.dpr,
+        };
+      }
+
+      function screenToWorld(point) {
+        return {
+          x: point.x - state.cameraOffset.x,
+          y: point.y - state.cameraOffset.y,
+        };
+      }
+
+      function pickBody(worldPoint) {
+        for (let i = state.traversalOrder.length - 1; i >= 0; i -= 1) {
+          const body = state.traversalOrder[i];
+          const dx = worldPoint.x - body.position.x;
+          const dy = worldPoint.y - body.position.y;
+          if (dx * dx + dy * dy <= body.hitRadius * body.hitRadius) {
+            return body;
+          }
+        }
+        return null;
+      }
+
+      function updateTooltip(body, pointerPoint) {
+        tooltipHost.innerHTML = "";
+        if (!body) {
+          return;
+        }
+        const bubble = document.createElement("div");
+        bubble.className = "tooltip-bubble visible";
+        const distanceAU = body.parent
+          ? `${body.distanceFromParentAU.toPrecision(3)} AU`
+          : "Anchor";
+        const scaleFactor = body.parent
+          ? `${body.hierarchicalFactor.toFixed(0)}×`
+          : `${state.zoom.toFixed(2)}×`;
+        bubble.innerHTML = `<strong>${body.name}</strong><span>${distanceAU}</span><span>Render scale ${scaleFactor}</span>`;
+        bubble.style.left = `${pointerPoint.x / state.dpr}px`;
+        bubble.style.top = `${pointerPoint.y / state.dpr}px`;
+        tooltipHost.appendChild(bubble);
+      }
+
+      function hideTooltip() {
+        tooltipHost.innerHTML = "";
+      }
+
+      function setFocus(bodyId) {
+        if (!state.bodyIndex.has(bodyId)) {
+          return;
+        }
+        state.focusId = bodyId;
+        state.infoDirty = true;
+      }
+
+      function updateInfoPanel() {
+        const body = state.bodyIndex.get(state.focusId) || state.rootBody;
+        if (!body) return;
+        const parent = body.parent ? body.parent.name : "—";
+        const distanceKm = body.parent
+          ? (body.distanceFromParentAU * AU_IN_KM).toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })
+          : "—";
+        const distanceAU = body.parent
+          ? body.distanceFromParentAU.toPrecision(4)
+          : "—";
+        const renderOrbitPx = body.parent
+          ? (body.orbitRadiusPx / state.dpr).toFixed(1)
+          : "—";
+        const pixelScale = body.pixelScale.toFixed(0);
+
+        infoPanel.innerHTML = `
+          <h2>${body.name}</h2>
+          <div class="stat"><span class="label">Parent</span><span class="value">${parent}</span></div>
+          <div class="stat"><span class="label">Distance (AU)</span><span class="value">${distanceAU}</span></div>
+          <div class="stat"><span class="label">Distance (km)</span><span class="value">${distanceKm}</span></div>
+          <div class="stat"><span class="label">Render Orbit</span><span class="value">${renderOrbitPx} px</span></div>
+          <div class="stat"><span class="label">Pixel Scale</span><span class="value">${pixelScale}×</span></div>
+        `;
+      }
+
+      function onWheel(evt) {
+        evt.preventDefault();
+        const multiplier = Math.exp(-evt.deltaY * 0.0014);
+        adjustZoom(multiplier);
+      }
+
+      function onPointerDown(evt) {
+        canvas.setPointerCapture(evt.pointerId);
+        const point = getPointerDevicePoint(evt);
+        state.pointerCache.set(evt.pointerId, point);
+        if (state.pointerCache.size === 1) {
+          state.pointerDown = {
+            id: evt.pointerId,
+            start: point,
+            moved: false,
+          };
+        } else if (state.pointerCache.size === 2) {
+          const values = Array.from(state.pointerCache.values());
+          state.pinchData = {
+            startDistance: distanceBetween(values[0], values[1]),
+            startZoom: state.zoom,
+          };
+          state.pointerDown = null;
+          hideTooltip();
+        }
+      }
+
+      function onPointerMove(evt) {
+        if (!state.pointerCache.has(evt.pointerId)) {
+          return;
+        }
+        const point = getPointerDevicePoint(evt);
+        state.pointerCache.set(evt.pointerId, point);
+
+        if (state.pinchData && state.pointerCache.size >= 2) {
+          const values = Array.from(state.pointerCache.values());
+          const distance = distanceBetween(values[0], values[1]);
+          if (state.pinchData.startDistance > 0 && Number.isFinite(distance)) {
+            const multiplier = distance / state.pinchData.startDistance;
+            setZoom(state.pinchData.startZoom * multiplier);
+          }
+          hideTooltip();
+          return;
+        }
+
+        if (state.pointerDown && state.pointerDown.id === evt.pointerId) {
+          const dx = point.x - state.pointerDown.start.x;
+          const dy = point.y - state.pointerDown.start.y;
+          if (!state.pointerDown.moved && Math.hypot(dx, dy) > 10 * state.dpr) {
+            state.pointerDown.moved = true;
+          }
+        }
+
+        if (state.pointerCache.size === 1 && !state.pinchData) {
+          const worldPoint = screenToWorld(point);
+          const hovered = pickBody(worldPoint);
+          if (hovered?.id !== state.hoverId) {
+            state.hoverId = hovered ? hovered.id : null;
+          }
+          if (hovered) {
+            canvas.style.cursor = "pointer";
+            updateTooltip(hovered, point);
+          } else {
+            canvas.style.cursor = "grab";
+            hideTooltip();
+          }
+        }
+      }
+
+      function onPointerUp(evt) {
+        if (!state.pointerCache.has(evt.pointerId)) {
+          return;
+        }
+        const point = getPointerDevicePoint(evt);
+        state.pointerCache.delete(evt.pointerId);
+
+        if (state.pointerCache.size < 2) {
+          state.pinchData = null;
+        }
+
+        if (state.pointerDown && state.pointerDown.id === evt.pointerId) {
+          if (!state.pointerDown.moved) {
+            const picked = pickBody(screenToWorld(point));
+            if (picked) {
+              setFocus(picked.id);
+            }
+          }
+          state.pointerDown = null;
+        }
+
+        if (state.pointerCache.size === 0) {
+          canvas.style.cursor = "grab";
+        }
+      }
+
+      function onPointerCancel(evt) {
+        if (state.pointerCache.has(evt.pointerId)) {
+          state.pointerCache.delete(evt.pointerId);
+        }
+        state.pointerDown = null;
+        state.pinchData = null;
+        state.hoverId = null;
+        canvas.style.cursor = "grab";
+        hideTooltip();
+      }
+
+      function distanceBetween(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      }
+
+      function loop(now) {
+        if (!loop.lastTime) loop.lastTime = now;
+        const delta = now - loop.lastTime;
+        loop.lastTime = now;
+
+        updatePhysics(delta);
+        updateBodies();
+        updateCamera(delta);
+        draw();
+
+        if (state.infoDirty) {
+          updateInfoPanel();
+          state.infoDirty = false;
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+      resizeCanvas();
+      updateBodies();
+      updateCamera(16);
+      updateZoomUI();
+      updateInfoPanel();
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+      });
+
+      zoomSlider.addEventListener("input", (evt) => {
+        if (isSyncingSlider) return;
+        const value = Number(evt.target.value);
+        const zoom = sliderValueToZoom(value);
+        setZoom(zoom, { skipUi: true });
+        updateZoomUI();
+      });
+
+      canvas.addEventListener("wheel", onWheel, { passive: false });
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerup", onPointerUp);
+      canvas.addEventListener("pointerleave", onPointerCancel);
+      canvas.addEventListener("pointercancel", onPointerCancel);
+
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
